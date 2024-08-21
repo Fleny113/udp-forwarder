@@ -46,7 +46,7 @@ and factorio doesn't seem to enjoing having its packet being converted from `UDP
 To solve this you can run UDP Forwarder on the VPS in Mode 1, with a cmdline such as: `./udp-forwarder 1 <some port> <port from where you connect>`.
 After you run the command UDP Forwarder will listen to those 2 ports as explained in the Mode 1 explaination above.
 
-Then on the same server that is running the Factorio server you can run UDP Forwarder in Mode 2, with a cmdline such as: `./udp-forwarder 1 <vps port> <factorio port> <vps hostname> 127.0.0.1`.
+Then on the same server that is running the Factorio server you can run UDP Forwarder in Mode 2, with a cmdline such as: `./udp-forwarder 2 <vps port> <factorio port> <vps hostname> 127.0.0.1`.
 After you run this UDP Forwarder will send a `X` to the UDP Forwarder running on the VPS so from there when a Factorio clients opens a connection with the VPS on the port you decided
 the UDP Forwarder on the VPS will send the packets to the UDP Forwarder running on the server running the Factorio server and then it will send the data to Factorio to handle the connection.
 
