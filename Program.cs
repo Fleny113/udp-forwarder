@@ -73,7 +73,6 @@ static async Task ForwardMessagesAsync(UdpClient source, UdpClient destination, 
         try
         {
             var result = await source.ReceiveAsync(ct);
-            var message = Encoding.UTF8.GetString(result.Buffer);
 
             if (ownWrapper is not null && endPointWrapper is not null)
             {
