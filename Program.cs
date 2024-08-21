@@ -68,14 +68,14 @@ Console.WriteLine("Unknown mode.");
 static async Task ForwardMessagesAsync(UdpClient source, UdpClient destination, string sourceName, string destName,
     IPEndpointWrapper? ownWrapper, IPEndpointWrapper? endPointWrapper, CancellationToken ct)
 {
-    while (!ct.IsCancellationRequested)
+    if (ownWrapper is not null && endPointWrapper is not null)
     {
-        try
+        while (!ct.IsCancellationRequested)
         {
-            var result = await source.ReceiveAsync(ct);
-
-            if (ownWrapper is not null && endPointWrapper is not null)
+            try
             {
+                var result = await source.ReceiveAsync(ct);
+
                 ownWrapper.EndPoint = result.RemoteEndPoint;
 
                 if (endPointWrapper.EndPoint is null)
@@ -86,14 +86,26 @@ static async Task ForwardMessagesAsync(UdpClient source, UdpClient destination, 
 
                 await destination.SendAsync(result.Buffer, endPointWrapper.EndPoint, ct);
             }
-            else
+            catch (Exception ex)
             {
-                await destination.SendAsync(result.Buffer, ct);
+                Console.WriteLine($"Error in forwarding message from {sourceName} to {destName}: {ex.Message}");
             }
         }
-        catch (Exception ex)
+    }
+    else
+    {
+        while (!ct.IsCancellationRequested)
         {
-            Console.WriteLine($"Error in forwarding message from {sourceName} to {destName}: {ex.Message}");
+            try
+            {
+                var result = await source.ReceiveAsync(ct);
+
+                await destination.SendAsync(result.Buffer, ct);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in forwarding message from {sourceName} to {destName}: {ex.Message}");
+            }
         }
     }
 }
