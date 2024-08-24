@@ -1,4 +1,7 @@
-﻿using System.Net.Sockets;
+﻿using System.Buffers;
+using System.Net;
+using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Text;
 using UdpForwarder;
 
@@ -23,8 +26,8 @@ if (mode == 1)
     var desEndpointA = new IPEndpointWrapper();
     var desEndpointB = new IPEndpointWrapper();
 
-    using var clientA = new UdpClient(portA);
-    using var clientB = new UdpClient(portB);
+    using var clientA = new UdpClient(portA, AddressFamily.InterNetwork);
+    using var clientB = new UdpClient(portB, AddressFamily.InterNetwork);
 
     Console.WriteLine($"Listening on port {portA} and {portB}");
     Console.WriteLine($"Starting forwarding for A and B.");
@@ -68,15 +71,24 @@ Console.WriteLine("Unknown mode.");
 static async Task ForwardMessagesAsync(UdpClient source, UdpClient destination, string sourceName, string destName,
     IPEndpointWrapper? ownWrapper, IPEndpointWrapper? endPointWrapper, CancellationToken ct)
 {
+    // Value stolen from System.Net.Sockets.UdpClient
+    const int MaxUDPSize = 0x10000;
+
+    // Rent the memory to use as a buffer for the recv of messages
+    var buffer = MemoryPool<byte>.Shared.Rent(MaxUDPSize);
+
+    var sourceFamily = GetAdressFamily(source);
+    var sourceIpEndpoint = GetIpEndpoint(sourceFamily);
+
     if (ownWrapper is not null && endPointWrapper is not null)
     {
         while (!ct.IsCancellationRequested)
         {
             try
             {
-                var result = await source.ReceiveAsync(ct);
+                var result = await source.Client.ReceiveFromAsync(buffer.Memory, SocketFlags.None, sourceIpEndpoint, ct);
 
-                ownWrapper.EndPoint = result.RemoteEndPoint;
+                ownWrapper.EndPoint = (IPEndPoint)result.RemoteEndPoint;
 
                 if (endPointWrapper.EndPoint is null)
                 {
@@ -84,7 +96,7 @@ static async Task ForwardMessagesAsync(UdpClient source, UdpClient destination, 
                     continue;
                 }
 
-                await destination.SendAsync(result.Buffer, endPointWrapper.EndPoint, ct);
+                await destination.Client.SendToAsync(buffer.Memory[..result.ReceivedBytes], SocketFlags.None, endPointWrapper.EndPoint, ct);
             }
             catch (Exception ex)
             {
@@ -98,14 +110,27 @@ static async Task ForwardMessagesAsync(UdpClient source, UdpClient destination, 
         {
             try
             {
-                var result = await source.ReceiveAsync(ct);
-
-                await destination.SendAsync(result.Buffer, ct);
+                var result = await source.Client.ReceiveFromAsync(buffer.Memory, SocketFlags.None, sourceIpEndpoint, ct);
+                await destination.Client.SendAsync(buffer.Memory[..result.ReceivedBytes], SocketFlags.None, ct);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error in forwarding message from {sourceName} to {destName}: {ex.Message}");
+                Console.Write($"Error in forwarding message from {sourceName} to {destName}:");
+                Console.WriteLine(ex);
             }
         }
     }
+}
+
+[UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_family")]
+extern static ref AddressFamily GetAdressFamily(UdpClient client);
+
+static IPEndPoint GetIpEndpoint(AddressFamily family)
+{
+    return family switch
+    {
+        AddressFamily.InterNetwork => new IPEndPoint(IPAddress.Any, IPEndPoint.MinPort),
+        AddressFamily.InterNetworkV6 => new IPEndPoint(IPAddress.IPv6Any, IPEndPoint.MinPort),
+        _ => throw new ArgumentException("Can't get IPEndpoint for the given family", nameof(family)),
+    };
 }
