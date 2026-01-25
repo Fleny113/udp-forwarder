@@ -14,7 +14,7 @@ There is a makefile, you can `make server` and `make client` to build respective
 
 ### Debug mode
 
-You can compile in debug mode by using `make DEBUG=1 server` or `make DEBUG=1 client`. This will enable additional logging to help debugging issues.
+You can compile in debug mode by using `DEBUG=1 make server` or `DEBUG=1 make client`. This will enable additional logging to help debugging issues.
 
 ## Usage
 
