@@ -1,0 +1,28 @@
+#pragma once
+#include <stdint.h>
+#include <sys/socket.h>
+#include "clients.h"
+
+typedef struct
+{
+    // Address of the destination server
+    const struct sockaddr *fwdAddr;
+    // Length of the follownig data section
+    uint16_t length;
+    // Data buffer for the inizial packet
+    uint8_t data[4096];
+    // Socket of the forwarding server
+    int socktFd;
+    // Address of the server to connect to
+    const struct sockaddr *serverAddress;
+    // Client info
+    Client *client;
+} thrdArgs;
+
+typedef struct
+{
+    // Socket to send advertising packets from
+    int socktFd;
+    // Address of the server to send advertising packets to
+    const struct sockaddr *serverAddress;
+} advThrdArgs;
