@@ -1,10 +1,8 @@
 #include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <threads.h>
 #include <semaphore.h>
 #include <unistd.h>
-#include <time.h>
 #include "clients.h"
 
 Client *clients = NULL;
@@ -24,6 +22,8 @@ Client *addClient(uint32_t ip, uint16_t port)
         Client *root = clients = malloc(sizeof(Client));
         root->ip = ip;
         root->port = port;
+        root->socktFd = -1;
+        root->next = NULL;
         sem_post(&mutex);
         return root;
     }
@@ -37,6 +37,8 @@ Client *addClient(uint32_t ip, uint16_t port)
     root->next = malloc(sizeof(Client));
     root->next->ip = ip;
     root->next->port = port;
+    root->socktFd = -1;
+    root->next->next = NULL;
     root = root->next;
 
     sem_post(&mutex);

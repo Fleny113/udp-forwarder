@@ -1,6 +1,5 @@
 #include <stdlib.h>
 #include <threads.h>
-#include <time.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -75,7 +74,7 @@ int threadedClientUDPListener(void *threadArgs)
 #endif
     int basePacketLengh = sizeof(packet) - sizeof(packet.data);
 
-    socklen_t len = sizeof(args->fwdAddr);
+    socklen_t len = sizeof(*args->fwdAddr);
 
     while (1)
     {
