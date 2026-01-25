@@ -3,7 +3,7 @@
 typedef struct
 {
     // Port for the thread to bind
-    int port;
+    uint16_t port;
     // Socket for the incoming messages from clients
     int *socketFd;
     // Socket for the forwarded messages
@@ -15,7 +15,7 @@ typedef struct
 typedef struct
 {
     // Port for the thread to bind
-    int port;
+    uint16_t port;
     // Socket for the forwarded messages
     int *socketFd;
     // Socket for the incoming messages from clients

@@ -228,9 +228,31 @@ int main(int argc, char *argv[])
 {
     initClients();
 
-    uint8_t srvIp[] = {127, 0, 0, 1};
-    uint8_t fwdIp[] = {192, 168, 1, 6};
-    const char *password = "secret";
+    if (argc != 6)
+    {
+        printf("Usage: %s <server ip> <server port> <forward ip> <forward port> <password>\n", argv[0]);
+        return EXIT_FAILURE;
+    }
 
-    return start_client(srvIp, 8001, fwdIp, 34197, password);
+    uint8_t serverIp[4];
+    uint8_t forwardIp[4];
+
+    if (sscanf(argv[1], "%hd.%hd.%hd.%hd", &serverIp[0], &serverIp[1], &serverIp[2], &serverIp[3]) != 4)
+    {
+        printf("Invalid server IP address\n");
+        return EXIT_FAILURE;
+    }
+
+    uint16_t serverPort = atoi(argv[2]);
+
+    if (sscanf(argv[3], "%hd.%hd.%hd.%hd", &forwardIp[0], &forwardIp[1], &forwardIp[2], &forwardIp[3]) != 4)
+    {
+        printf("Invalid forward IP address\n");
+        return EXIT_FAILURE;
+    }
+
+    uint16_t forwardPort = atoi(argv[4]);
+    char *password = argv[5];
+
+    return start_client(serverIp, serverPort, forwardIp, forwardPort, password);
 }

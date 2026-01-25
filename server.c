@@ -143,7 +143,7 @@ int serverUDPForward(void *threadArgs)
     }
 }
 
-int start_server(const int incomingPort, const int forwardPort, const char *password)
+int start_server(const uint16_t incomingPort, const uint16_t forwardPort, const char *password)
 {
     thrd_t inc, fwd;
     int incomingFd, forwardFd;
@@ -174,5 +174,15 @@ int start_server(const int incomingPort, const int forwardPort, const char *pass
 
 int main(int argc, char *argv[])
 {
-    return start_server(8000, 8001, "secret");
+    if (argc != 4)
+    {
+        printf("Usage: %s <incoming port> <forward port> <password>\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    uint16_t incomingPort = atoi(argv[1]);
+    uint16_t forwardPort = atoi(argv[2]);
+    char *password = argv[3];
+
+    return start_server(incomingPort, forwardPort, password);
 }
