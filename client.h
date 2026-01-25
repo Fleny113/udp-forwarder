@@ -17,7 +17,7 @@ typedef struct
     const struct sockaddr *serverAddress;
     // Client info
     Client *client;
-} thrdArgs;
+} thrdClientArgs;
 
 typedef struct
 {
@@ -25,4 +25,8 @@ typedef struct
     int socktFd;
     // Address of the server to send advertising packets to
     const struct sockaddr *serverAddress;
-} advThrdArgs;
+    // Password for advertisement packets
+    const char *password;
+    // Length of the password
+    size_t passwordLength;
+} thrdAdvArgs;

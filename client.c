@@ -15,13 +15,19 @@
 
 int UDPadv(void *threadArgs)
 {
-    advThrdArgs *args = threadArgs;
+    thrdAdvArgs *args = threadArgs;
+
+    Packet advPacket;
+    advPacket.ip = 0;
+    advPacket.port = 0;
+    advPacket.length = args->passwordLength;
+    memcpy(advPacket.data, args->password, args->passwordLength);
+
+    const size_t advPacketSize = sizeof(advPacket.ip) + sizeof(advPacket.port) + sizeof(advPacket.length) + args->passwordLength;
 
     while (1)
     {
-        const char message[] = "X";
-        sendto(args->socktFd, message, sizeof(message), 0, args->serverAddress, sizeof(struct sockaddr_in));
-
+        sendto(args->socktFd, &advPacket, advPacketSize, 0, args->serverAddress, sizeof(struct sockaddr_in));
         sleep(10);
     }
 
@@ -30,7 +36,7 @@ int UDPadv(void *threadArgs)
 
 int threadedClientUDPListener(void *threadArgs)
 {
-    thrdArgs *args = threadArgs;
+    thrdClientArgs *args = threadArgs;
 
     if ((args->client->sockFd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
     {
@@ -129,47 +135,50 @@ int threadedClientUDPListener(void *threadArgs)
     return 0;
 }
 
-int start_client(uint8_t serverAddress[4], uint16_t serverPort, uint8_t forwardAddress[4], uint16_t forwardPort)
+int start_client(uint8_t serverIp[4], uint16_t serverPort, uint8_t forwardIp[4], uint16_t forwardPort, const char *password)
 {
     int sockFd;
-    struct sockaddr_in servAddr;
-    struct sockaddr_in *fwdAddr = malloc(sizeof(struct sockaddr_in));
+    struct sockaddr_in serverAddress;
+    struct sockaddr_in *forwardAddress = malloc(sizeof(struct sockaddr_in));
 
-    memset(&servAddr, 0, sizeof(servAddr));
-    memset(fwdAddr, 0, sizeof(struct sockaddr_in));
-    servAddr.sin_family = AF_INET;
-    servAddr.sin_addr.s_addr = *(uint32_t *)serverAddress;
-    servAddr.sin_port = htons(serverPort);
-    fwdAddr->sin_family = AF_INET;
-    fwdAddr->sin_addr.s_addr = *(uint32_t *)forwardAddress;
-    fwdAddr->sin_port = htons(forwardPort);
+    memset(&serverAddress, 0, sizeof(serverAddress));
+    memset(forwardAddress, 0, sizeof(struct sockaddr_in));
+
+    serverAddress.sin_family = AF_INET;
+    serverAddress.sin_addr.s_addr = *(uint32_t *)serverIp;
+    serverAddress.sin_port = htons(serverPort);
+
+    forwardAddress->sin_family = AF_INET;
+    forwardAddress->sin_addr.s_addr = *(uint32_t *)forwardIp;
+    forwardAddress->sin_port = htons(forwardPort);
 
     if ((sockFd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
     {
         perror("Socket creation failed\n");
-        free(fwdAddr);
+        free(forwardAddress);
         return EXIT_FAILURE;
     }
 
-    if (connect(sockFd, (const struct sockaddr *)&servAddr, sizeof(struct sockaddr_in)) < 0)
+    if (connect(sockFd, (const struct sockaddr *)&serverAddress, sizeof(struct sockaddr_in)) < 0)
     {
         perror("Connect failed\n");
-        free(fwdAddr);
+        free(forwardAddress);
         return EXIT_FAILURE;
     }
 
     printf("Starting background thread to start and keep the connection alive\n");
     fflush(stdout);
 
-    thrd_t advThread;
-    advThrdArgs *advArgs = malloc(sizeof(advThrdArgs));
+    thrdAdvArgs *advArgs = malloc(sizeof(thrdAdvArgs));
     advArgs->socktFd = sockFd;
-    advArgs->serverAddress = (const struct sockaddr *)&servAddr;
+    advArgs->serverAddress = (const struct sockaddr *)&serverAddress;
+    advArgs->password = password;
+    advArgs->passwordLength = strlen(password);
+
+    thrd_t advThread;
     thrd_create(&advThread, &UDPadv, advArgs);
 
     Packet packet;
-    ssize_t bytesReceived;
-    Client *c;
 
 #if DEBUG
     // uint32 -> 4 uint8
@@ -178,14 +187,14 @@ int start_client(uint8_t serverAddress[4], uint16_t serverPort, uint8_t forwardA
 
     while (true)
     {
-        bytesReceived = recvfrom(sockFd, &packet, sizeof(Packet), 0, NULL, NULL);
+        const ssize_t bytesReceived = recvfrom(sockFd, &packet, sizeof(Packet), 0, NULL, NULL);
 
 #if DEBUG
         printf("Client %d.%d.%d.%d:%d: Received %d bytes\n", ip[0], ip[1], ip[2], ip[3], packet.port, bytesReceived);
         fflush(stdout);
 #endif
 
-        c = findClientByIpPort(packet.ip, packet.port);
+        Client *c = findClientByIpPort(packet.ip, packet.port);
         if (c == NULL)
         {
 #if DEBUG
@@ -196,21 +205,22 @@ int start_client(uint8_t serverAddress[4], uint16_t serverPort, uint8_t forwardA
             c = addClient(packet.ip, packet.port);
 
             // spawn thread to listen to this client
-            thrdArgs *args = malloc(sizeof(thrdArgs));
-            thrd_t clientThread;
+            thrdClientArgs *args = malloc(sizeof(thrdClientArgs));
+
             args->client = c;
-            args->fwdAddr = (const struct sockaddr *)fwdAddr;
+            args->fwdAddr = (const struct sockaddr *)forwardAddress;
             args->sockFd = sockFd;
-            args->serverAddress = (const struct sockaddr *)&servAddr;
+            args->serverAddress = (const struct sockaddr *)&serverAddress;
             args->length = packet.length;
             memcpy(args->data, packet.data, packet.length);
 
+            thrd_t clientThread;
             thrd_create(&clientThread, &threadedClientUDPListener, args);
 
             continue;
         }
 
-        sendto(c->sockFd, packet.data, packet.length, 0, (const struct sockaddr *)fwdAddr, sizeof(struct sockaddr_in));
+        sendto(c->sockFd, packet.data, packet.length, 0, (const struct sockaddr *)forwardAddress, sizeof(struct sockaddr_in));
     }
 }
 
@@ -220,6 +230,7 @@ int main(int argc, char *argv[])
 
     uint8_t srvIp[] = {127, 0, 0, 1};
     uint8_t fwdIp[] = {192, 168, 1, 6};
+    const char *password = "secret";
 
-    return start_client(srvIp, 8001, fwdIp, 34197);
+    return start_client(srvIp, 8001, fwdIp, 34197, password);
 }
