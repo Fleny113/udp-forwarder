@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <stdbool.h>
 #include <arpa/inet.h>
 #include "client.h"
 #include "clients.h"
@@ -18,7 +19,7 @@ int UDPadv(void *threadArgs)
 
     while (1)
     {
-        constexpr char message[] = "X";
+        const char message[] = "X";
         sendto(args->socktFd, message, sizeof(message), 0, args->serverAddress, sizeof(struct sockaddr_in));
 
         sleep(10);
@@ -175,9 +176,9 @@ int start_client(uint8_t serverAddress[4], uint16_t serverPort, uint8_t forwardA
     uint8_t *ip = (uint8_t *)&packet.ip;
 #endif
 
-    while (1)
+    while (true)
     {
-        bytesReceived = recvfrom(sockFd, &packet, sizeof(Packet), 0, nullptr, nullptr);
+        bytesReceived = recvfrom(sockFd, &packet, sizeof(Packet), 0, NULL, NULL);
 
 #if DEBUG
         printf("Client %d.%d.%d.%d:%d: Received %d bytes\n", ip[0], ip[1], ip[2], ip[3], packet.port, bytesReceived);

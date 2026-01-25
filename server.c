@@ -2,6 +2,7 @@
 #include <threads.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include "server.h"
@@ -36,7 +37,7 @@ int serverUDPIncoming(void *threadArgs)
 
     socklen_t len = sizeof(cliAddr);
 
-    constexpr int packetSize = sizeof(packet) - sizeof(packet.data);
+    const int packetSize = sizeof(packet) - sizeof(packet.data);
 
     while (true)
     {
@@ -89,7 +90,6 @@ int serverUDPForward(void *threadArgs)
 
     socklen_t len = sizeof(*args->fwdAddr);
 
-
     int outLen;
     int readSoFar;
 
@@ -141,8 +141,8 @@ int start_server(const int incomingPort, const int forwardPort)
 
     thrd_create(&inc, &serverUDPIncoming, &incomingArgs);
     thrd_create(&fwd, &serverUDPForward, &forwardArgs);
-    thrd_join(inc, nullptr);
-    thrd_join(fwd, nullptr);
+    thrd_join(inc, NULL);
+    thrd_join(fwd, NULL);
 
     return 0;
 }

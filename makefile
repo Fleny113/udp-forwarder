@@ -1,19 +1,19 @@
 all: client server
 
 server.o: server.c
-	gcc -c $< -g
+	gcc --std=c17 -c $< -g
 
 client.o: client.c
-	gcc -c $< -g
+	gcc --std=c17 -c $< -g
 
 clients.o: clients.c
-	gcc -c $< -g
+	gcc --std=c17 -c $< -g
 
 server: server.o
-	gcc -o $@ $^ -g
+	gcc --std=c17 -o $@ $^ -g
 
 client: clients.o client.o
-	gcc -o $@ $^ -g
+	gcc --std=c17 -o $@ $^ -g
 
 clean:
 	rm *.o || true
