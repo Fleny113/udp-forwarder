@@ -1,19 +1,25 @@
+FLAGS = --std=c17 -g
+
+ifeq (${DEBUG},1)
+FLAGS += -DDEBUG
+endif
+
 all: client server
 
 server.o: server.c
-	gcc --std=c17 -c $< -g
+	gcc $(FLAGS) -c $<
 
 client.o: client.c
-	gcc --std=c17 -c $< -g
+	gcc $(FLAGS) -c $<
 
 clients.o: clients.c
-	gcc --std=c17 -c $< -g
+	gcc $(FLAGS) -c $<
 
 server: server.o
-	gcc --std=c17 -o $@ $^ -g
+	gcc $(FLAGS) -o $@ $^
 
 client: clients.o client.o
-	gcc --std=c17 -o $@ $^ -g
+	gcc $(FLAGS) -o $@ $^
 
 clean:
 	rm *.o || true
