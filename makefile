@@ -1,3 +1,5 @@
+all: client server
+
 server.o: server.c
 	gcc -c $< -g
 

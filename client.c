@@ -18,7 +18,7 @@ int UDPadv(void *threadArgs)
 
     while (1)
     {
-        char message[] = "X";
+        constexpr char message[] = "X";
         sendto(args->socktFd, message, sizeof(message), 0, args->serverAddress, sizeof(struct sockaddr_in));
 
         sleep(10);
@@ -31,21 +31,21 @@ int threadedClientUDPListener(void *threadArgs)
 {
     thrdArgs *args = threadArgs;
 
-    if ((args->client->socktFd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+    if ((args->client->sockFd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
     {
         perror("[thread] Socket creation failed\n");
         free(threadArgs);
         return EXIT_FAILURE;
     }
 
-    if (connect(args->client->socktFd, args->fwdAddr, sizeof(struct sockaddr_in)) < 0)
+    if (connect(args->client->sockFd, args->fwdAddr, sizeof(struct sockaddr_in)) < 0)
     {
         perror("[thread] Connect failed\n");
         free(threadArgs);
         return EXIT_FAILURE;
     }
 
-    if (sendto(args->client->socktFd, args->data, args->length, 0, args->fwdAddr, sizeof(struct sockaddr_in)) < 0)
+    if (sendto(args->client->sockFd, args->data, args->length, 0, args->fwdAddr, sizeof(struct sockaddr_in)) < 0)
     {
         perror("[thread] Initial packet send failed\n");
         free(threadArgs);
@@ -56,7 +56,7 @@ int threadedClientUDPListener(void *threadArgs)
     struct timeval tv;
     tv.tv_sec = 30;
     tv.tv_usec = 0;
-    if (setsockopt(args->client->socktFd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0)
+    if (setsockopt(args->client->sockFd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0)
     {
         perror("[thread] setsockopt SO_RCVTIMEO failed\n");
         free(threadArgs);
@@ -66,25 +66,25 @@ int threadedClientUDPListener(void *threadArgs)
     Packet packet;
     packet.ip = args->client->ip;
     packet.port = args->client->port;
-    int bytesReceived;
+    ssize_t bytesReceived;
 
 #if DEBUG
     // uint32 -> 4 uint8
     uint8_t *ip = (uint8_t *)&packet.ip;
 #endif
-    int basePacketLengh = sizeof(packet) - sizeof(packet.data);
+    int basePacketLength = sizeof(packet) - sizeof(packet.data);
 
     socklen_t len = sizeof(*args->fwdAddr);
 
     while (1)
     {
-        bytesReceived = recvfrom(args->client->socktFd, &packet.data, sizeof(packet.data), 0, (struct sockaddr *)args->fwdAddr, &len);
+        bytesReceived = recvfrom(args->client->sockFd, &packet.data, sizeof(packet.data), 0, (struct sockaddr *)args->fwdAddr, &len);
 
         // Check for timeout
         if (bytesReceived < 0)
         {
-            int err = errno;
-            if (err == EAGAIN || err == EWOULDBLOCK)
+            const int err = errno;
+            if (err == EAGAIN)
             {
 #if DEBUG
                 // Timeout occurred - connection is stale
@@ -113,7 +113,7 @@ int threadedClientUDPListener(void *threadArgs)
 
         packet.length = bytesReceived;
 
-        sendto(args->socktFd, &packet, basePacketLengh + bytesReceived, 0, args->serverAddress, sizeof(struct sockaddr_in));
+        sendto(args->sockFd, &packet, basePacketLength + bytesReceived, 0, args->serverAddress, sizeof(struct sockaddr_in));
     }
 
 #if DEBUG
@@ -122,7 +122,7 @@ int threadedClientUDPListener(void *threadArgs)
 #endif
 
     removeClient(args->client);
-    close(args->client->socktFd);
+    close(args->client->sockFd);
 
     free(threadArgs);
     return 0;
@@ -130,28 +130,30 @@ int threadedClientUDPListener(void *threadArgs)
 
 int start_client(uint8_t serverAddress[4], uint16_t serverPort, uint8_t forwardAddress[4], uint16_t forwardPort)
 {
-    int sockfd;
-    struct sockaddr_in servaddr;
-    struct sockaddr_in *fwdaddr = malloc(sizeof(struct sockaddr_in));
+    int sockFd;
+    struct sockaddr_in servAddr;
+    struct sockaddr_in *fwdAddr = malloc(sizeof(struct sockaddr_in));
 
-    memset(&servaddr, 0, sizeof(servaddr));
-    memset(fwdaddr, 0, sizeof(struct sockaddr_in));
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_addr.s_addr = *(uint32_t *)serverAddress;
-    servaddr.sin_port = htons(serverPort);
-    fwdaddr->sin_family = AF_INET;
-    fwdaddr->sin_addr.s_addr = *(uint32_t *)forwardAddress;
-    fwdaddr->sin_port = htons(forwardPort);
+    memset(&servAddr, 0, sizeof(servAddr));
+    memset(fwdAddr, 0, sizeof(struct sockaddr_in));
+    servAddr.sin_family = AF_INET;
+    servAddr.sin_addr.s_addr = *(uint32_t *)serverAddress;
+    servAddr.sin_port = htons(serverPort);
+    fwdAddr->sin_family = AF_INET;
+    fwdAddr->sin_addr.s_addr = *(uint32_t *)forwardAddress;
+    fwdAddr->sin_port = htons(forwardPort);
 
-    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+    if ((sockFd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
     {
         perror("Socket creation failed\n");
+        free(fwdAddr);
         return EXIT_FAILURE;
     }
 
-    if (connect(sockfd, (const struct sockaddr *)&servaddr, sizeof(struct sockaddr_in)) < 0)
+    if (connect(sockFd, (const struct sockaddr *)&servAddr, sizeof(struct sockaddr_in)) < 0)
     {
         perror("Connect failed\n");
+        free(fwdAddr);
         return EXIT_FAILURE;
     }
 
@@ -160,12 +162,12 @@ int start_client(uint8_t serverAddress[4], uint16_t serverPort, uint8_t forwardA
 
     thrd_t advThread;
     advThrdArgs *advArgs = malloc(sizeof(advThrdArgs));
-    advArgs->socktFd = sockfd;
-    advArgs->serverAddress = (const struct sockaddr *)&servaddr;
+    advArgs->socktFd = sockFd;
+    advArgs->serverAddress = (const struct sockaddr *)&servAddr;
     thrd_create(&advThread, &UDPadv, advArgs);
 
     Packet packet;
-    int bytesReceived;
+    ssize_t bytesReceived;
     Client *c;
 
 #if DEBUG
@@ -175,7 +177,7 @@ int start_client(uint8_t serverAddress[4], uint16_t serverPort, uint8_t forwardA
 
     while (1)
     {
-        bytesReceived = recvfrom(sockfd, &packet, sizeof(Packet), 0, NULL, NULL);
+        bytesReceived = recvfrom(sockFd, &packet, sizeof(Packet), 0, nullptr, nullptr);
 
 #if DEBUG
         printf("Client %d.%d.%d.%d:%d: Received %d bytes\n", ip[0], ip[1], ip[2], ip[3], packet.port, bytesReceived);
@@ -196,9 +198,9 @@ int start_client(uint8_t serverAddress[4], uint16_t serverPort, uint8_t forwardA
             thrdArgs *args = malloc(sizeof(thrdArgs));
             thrd_t clientThread;
             args->client = c;
-            args->fwdAddr = (const struct sockaddr *)fwdaddr;
-            args->socktFd = sockfd;
-            args->serverAddress = (const struct sockaddr *)&servaddr;
+            args->fwdAddr = (const struct sockaddr *)fwdAddr;
+            args->sockFd = sockFd;
+            args->serverAddress = (const struct sockaddr *)&servAddr;
             args->length = packet.length;
             memcpy(args->data, packet.data, packet.length);
 
@@ -207,18 +209,16 @@ int start_client(uint8_t serverAddress[4], uint16_t serverPort, uint8_t forwardA
             continue;
         }
 
-        sendto(c->socktFd, packet.data, packet.length, 0, (const struct sockaddr *)fwdaddr, sizeof(struct sockaddr_in));
+        sendto(c->sockFd, packet.data, packet.length, 0, (const struct sockaddr *)fwdAddr, sizeof(struct sockaddr_in));
     }
-
-    return 0;
 }
 
 int main(int argc, char *argv[])
 {
     initClients();
 
-    uint8_t srvIp[] = {141, 144, 196, 233};
-    uint8_t fwdIp[] = {127, 0, 0, 1};
+    uint8_t srvIp[] = {127, 0, 0, 1};
+    uint8_t fwdIp[] = {192, 168, 1, 6};
 
-    return start_client(srvIp, 8001, fwdIp, 3500);
+    return start_client(srvIp, 8001, fwdIp, 34197);
 }

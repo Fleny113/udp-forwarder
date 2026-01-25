@@ -11,7 +11,7 @@ int serverUDPIncoming(void *threadArgs)
 {
     thrdArgs *args = threadArgs;
 
-    if ((*args->socketfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+    if ((*args->socketFd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
     {
         perror("[incoming] Socket creation failed\n");
         return EXIT_FAILURE;
@@ -19,15 +19,13 @@ int serverUDPIncoming(void *threadArgs)
 
     Packet packet;
 
-    struct sockaddr_in servaddr, cliaddr;
-    memset(&servaddr, 0, sizeof(servaddr));
-    memset(&cliaddr, 0, sizeof(cliaddr));
+    struct sockaddr_in servAddr = {0}, cliAddr = {0};
 
-    servaddr.sin_family = AF_INET; // IPv4
-    servaddr.sin_addr.s_addr = INADDR_ANY;
-    servaddr.sin_port = htons(args->port);
+    servAddr.sin_family = AF_INET; // IPv4
+    servAddr.sin_addr.s_addr = INADDR_ANY;
+    servAddr.sin_port = htons(args->port);
 
-    if (bind(*args->socketfd, (const struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)
+    if (bind(*args->socketFd, (const struct sockaddr *)&servAddr, sizeof(servAddr)) < 0)
     {
         perror("[incoming] Bind failed\n");
         return EXIT_FAILURE;
@@ -36,25 +34,24 @@ int serverUDPIncoming(void *threadArgs)
     printf("[incoming] Bind on %d\n", args->port);
     fflush(stdout);
 
-    socklen_t len = sizeof(cliaddr);
-    int bytesReceived;
+    socklen_t len = sizeof(cliAddr);
 
-    int packetSize = sizeof(packet) - sizeof(packet.data);
+    constexpr int packetSize = sizeof(packet) - sizeof(packet.data);
 
-    while (1)
+    while (true)
     {
-        bytesReceived = recvfrom(*args->socketfd, packet.data, sizeof(packet.data), 0, (struct sockaddr *)&cliaddr, &len);
+        const ssize_t bytesReceived = recvfrom(*args->socketFd, packet.data, sizeof(packet.data), 0, (struct sockaddr *)&cliAddr, &len);
 
 #if DEBUG
         // uint32 -> 4 uint8
-        uint8_t *ip = (uint8_t *)&cliaddr.sin_addr.s_addr;
+        uint8_t *ip = (uint8_t *)&cliAddr.sin_addr.s_addr;
 
-        printf("[incoming] Client %d.%d.%d.%d:%d: Received %d bytes\n", ip[0], ip[1], ip[2], ip[3], cliaddr.sin_port, bytesReceived);
+        printf("[incoming] Client %d.%d.%d.%d:%d: Received %d bytes\n", ip[0], ip[1], ip[2], ip[3], cliAddr.sin_port, bytesReceived);
         fflush(stdout);
 #endif
 
-        packet.ip = cliaddr.sin_addr.s_addr;
-        packet.port = cliaddr.sin_port;
+        packet.ip = cliAddr.sin_addr.s_addr;
+        packet.port = cliAddr.sin_port;
         packet.length = bytesReceived;
 
         sendto(*args->fwdFd, &packet, packetSize + bytesReceived, 0, (struct sockaddr *)args->fwdAddr, sizeof(struct sockaddr_in));
@@ -65,7 +62,7 @@ int serverUDPForward(void *threadArgs)
 {
     thrdArgs *args = threadArgs;
 
-    if ((*args->socketfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+    if ((*args->socketFd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
     {
         perror("[forward] Socket creation failed\n");
         return EXIT_FAILURE;
@@ -73,17 +70,15 @@ int serverUDPForward(void *threadArgs)
 
     Packet packet;
 
-    struct sockaddr_in servaddr, fwdAddr;
-    memset(&servaddr, 0, sizeof(servaddr));
-    memset(&fwdAddr, 0, sizeof(fwdAddr));
+    struct sockaddr_in servAddr = {0}, fwdAddr = {0};
 
-    servaddr.sin_family = AF_INET; // IPv4
-    servaddr.sin_addr.s_addr = INADDR_ANY;
-    servaddr.sin_port = htons(args->port);
+    servAddr.sin_family = AF_INET; // IPv4
+    servAddr.sin_addr.s_addr = INADDR_ANY;
+    servAddr.sin_port = htons(args->port);
 
     fwdAddr.sin_family = AF_INET; // IPv4
 
-    if (bind(*args->socketfd, (const struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)
+    if (bind(*args->socketFd, (const struct sockaddr *)&servAddr, sizeof(servAddr)) < 0)
     {
         perror("[forward] Bind failed\n");
         return EXIT_FAILURE;
@@ -93,14 +88,14 @@ int serverUDPForward(void *threadArgs)
     fflush(stdout);
 
     socklen_t len = sizeof(*args->fwdAddr);
-    int bytesReceived;
+
 
     int outLen;
     int readSoFar;
 
-    while (1)
+    while (true)
     {
-        bytesReceived = recvfrom(*args->socketfd, &packet, sizeof(Packet), 0, (struct sockaddr *)args->fwdAddr, &len);
+        const ssize_t bytesReceived = recvfrom(*args->socketFd, &packet, sizeof(Packet), 0, (struct sockaddr *)args->fwdAddr, &len);
 
 #if DEBUG
         // uint32 -> 4 uint8
@@ -126,7 +121,7 @@ int serverUDPForward(void *threadArgs)
     }
 }
 
-int start_server(int incomingPort, int forwardPort)
+int start_server(const int incomingPort, const int forwardPort)
 {
     thrd_t inc, fwd;
     int incomingFd, forwardFd;
@@ -135,19 +130,19 @@ int start_server(int incomingPort, int forwardPort)
 
     thrdArgs incomingArgs, forwardArgs;
     incomingArgs.port = incomingPort;
-    incomingArgs.socketfd = &incomingFd;
+    incomingArgs.socketFd = &incomingFd;
     incomingArgs.fwdFd = &forwardFd;
     incomingArgs.fwdAddr = fwdAddr;
 
     forwardArgs.port = forwardPort;
-    forwardArgs.socketfd = &forwardFd;
+    forwardArgs.socketFd = &forwardFd;
     forwardArgs.fwdFd = &incomingFd;
     forwardArgs.fwdAddr = fwdAddr;
 
     thrd_create(&inc, &serverUDPIncoming, &incomingArgs);
     thrd_create(&fwd, &serverUDPForward, &forwardArgs);
-    thrd_join(inc, NULL);
-    thrd_join(fwd, NULL);
+    thrd_join(inc, nullptr);
+    thrd_join(fwd, nullptr);
 
     return 0;
 }

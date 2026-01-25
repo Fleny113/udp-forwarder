@@ -1,16 +1,16 @@
 #pragma once
 #include <stdint.h>
 
-typedef struct _Client
+typedef struct Client
 {
     // Ip of the sender
     uint32_t ip;
     // Port of the sender
     uint16_t port;
     // Socket to send / receive messages from
-    int socktFd;
+    int sockFd;
     // Linked list next node
-    struct _Client *next;
+    struct Client *next;
 } Client;
 
 void initClients();

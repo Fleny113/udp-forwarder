@@ -1,11 +1,8 @@
-#include <stddef.h>
 #include <stdlib.h>
-#include <threads.h>
 #include <semaphore.h>
-#include <unistd.h>
 #include "clients.h"
 
-Client *clients = NULL;
+Client *clients = nullptr;
 sem_t mutex;
 
 void initClients()
@@ -17,29 +14,30 @@ Client *addClient(uint32_t ip, uint16_t port)
 {
     sem_wait(&mutex);
 
-    if (clients == NULL)
+    if (clients == nullptr)
     {
         Client *root = clients = malloc(sizeof(Client));
         root->ip = ip;
         root->port = port;
-        root->socktFd = -1;
-        root->next = NULL;
+        root->sockFd = -1;
+        root->next = nullptr;
         sem_post(&mutex);
         return root;
     }
 
     Client *root = clients;
-    while (root->next != NULL)
+    while (root->next != nullptr)
     {
         root = root->next;
     }
 
     root->next = malloc(sizeof(Client));
-    root->next->ip = ip;
-    root->next->port = port;
-    root->socktFd = -1;
-    root->next->next = NULL;
+
     root = root->next;
+    root->ip = ip;
+    root->port = port;
+    root->sockFd = -1;
+    root->next = nullptr;
 
     sem_post(&mutex);
 
@@ -51,7 +49,7 @@ Client *findClientByIpPort(uint32_t ip, uint16_t port)
     sem_wait(&mutex);
     Client *root = clients;
 
-    while (root != NULL)
+    while (root != nullptr)
     {
         if (root->ip == ip && root->port == port)
         {
@@ -62,7 +60,7 @@ Client *findClientByIpPort(uint32_t ip, uint16_t port)
     }
 
     sem_post(&mutex);
-    return NULL;
+    return nullptr;
 }
 
 void removeClient(Client *client)
@@ -70,13 +68,13 @@ void removeClient(Client *client)
     sem_wait(&mutex);
 
     Client *root = clients;
-    Client *prev = NULL;
+    Client *prev = nullptr;
 
-    while (root != NULL)
+    while (root != nullptr)
     {
         if (root == client)
         {
-            if (prev == NULL)
+            if (prev == nullptr)
             {
                 clients = root->next;
             }
